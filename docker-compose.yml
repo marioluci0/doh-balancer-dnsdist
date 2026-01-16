@@ -1,0 +1,32 @@
+services:
+  dnsdist:
+    image: powerdns/dnsdist-19:latest
+    container_name: dnsdist_lb
+    restart: always
+
+    ports:
+      - "53:53/udp"
+      - "53:53/tcp"
+      - "443:443/tcp"
+
+    volumes:
+      - ./dnsdist.conf:/etc/dnsdist/dnsdist.conf:ro
+      - /etc/ssl/certs:/etc/ssl/certs:ro
+      - ./server.crt:/server.crt:ro
+      - ./server.key:/server.key:ro
+
+    environment:
+      - TZ=America/Sao_Paulo
+
+  api:
+    build: ./src
+    container_name: python_doh
+    restart: always
+
+    ports:
+     - "8000:8000/tcp"
+
+    depends_on:
+      - dnsdist
+
+    command: python3 /main.py
