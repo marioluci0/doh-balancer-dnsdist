@@ -29,7 +29,10 @@ services:
     depends_on:
       - dnsdist
 
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --workers 8 --limit-concurrency 2000
+
+    volumes:
+      - ./app/dns_responses.csv:/dns_responses.csv:rw
 
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/resolve?url=google.com"]

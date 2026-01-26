@@ -1,13 +1,13 @@
 from fastapi import HTTPException
 from tqdm.asyncio import tqdm
 import requests
-import subprocess
 import asyncio
 import aiohttp
+import pandas as pd
 
 URL = "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/domains/tif.txt"
 
-def getting_domains():
+def get_domains_tif():
     try:
         response = requests.get(URL, timeout=30)
         response.raise_for_status() # raises exception if nots 200
@@ -18,6 +18,9 @@ def getting_domains():
     except requests.RequestException as e:
         raise HTTPException(status_code=502, detail=f"Error downloading blocklist: {e}")
     
+def get_domains_majestic():
+    return pd.read_csv("https://downloads.majestic.com/majestic_million.csv", usecols=["Domain"])["Domain"].tolist()
+
 async def request_domain(session, domain):
     doh_url = f"http://localhost:8000/resolve?url={domain}"
     try:
@@ -30,8 +33,10 @@ async def bounded_request(domain, session, semaphore):
     async with semaphore:
         return await request_domain(session, domain)
 
-async def requesting_full_gather(max_concurrent=512):
-    domains = getting_domains()
+async def requesting_full_gather(max_concurrent=400):
+    # domains = get_domains_tif()
+    domains = get_domains_majestic()
+    domains = domains[:100000]
 
     connector = aiohttp.TCPConnector(
         limit=max_concurrent,
