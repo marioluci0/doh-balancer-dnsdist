@@ -8,9 +8,22 @@ app = FastAPI(tittle="DoH-loadBalancer")
 
 # Config
 DNSDIST_URL = "https://dnsdist/dns-query"
+client: httpx.AsyncClient | None = None
+
+@app.on_event("startup")
+async def startup_event():
+    global client
+    client = httpx.AsyncClient(verify=False, http2=True, timeout=5.0)  # change verify=False to True for production
+    
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    global client
+    await client.aclose()
 
 @app.get("/resolve")
 async def resolve_dns(url: str, type: str = "A"):
+    global client
 
     # Solving a domain using backend DNSDist by DoH
     if not url:
@@ -27,13 +40,12 @@ async def resolve_dns(url: str, type: str = "A"):
         wire_data = q.to_wire()
 
         # Sending to dnsdist async
-        async with httpx.AsyncClient(verify=False, http2=True) as client: # change verify=false to true for production
-            response = await client.post(
-                DNSDIST_URL,
-                headers={"ContentType": "application/dns-message"},
-                content=wire_data,
-                timeout=5.0
-            )
+        response = await client.post(
+            DNSDIST_URL,
+            headers={"ContentType": "application/dns-message"},
+            content=wire_data,
+            timeout=5.0
+        )
         
         if response.status_code != 200:
             raise HTTPException(status_code=502, detail=f"Erro no DNSDist: {response.text}")
