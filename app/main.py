@@ -8,15 +8,17 @@ import httpx
 DNSDIST_URL = "https://dnsdist/dns-query"
 client: httpx.AsyncClient | None = None
 
-# @asynccontextmanager
-# async def lifespan(app: FastAPI):
-#     global client
-#     client = httpx.AsyncClient(verify=False, http2=True, limits=httpx.Limits(max_keepalive_connections=450, max_connections=450)) # change verify=False to True for production
-#     yield
-#     await client.aclose()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global client
+    limits = httpx.Limits(max_keepalive_connections=100, max_connections=None, keepalive_expiry=30.0)
+    client = httpx.AsyncClient(verify=False, http2=True, limits=limits, timeout=httpx.Timeout(2.0, connect=0.5)) # change verify=False to True for production
+    yield
+    await client.aclose()
 
 # Using fast api to make async requests and make app more simple
-app = FastAPI(tittle="DoH-loadBalancer")
+app = FastAPI(title="DoH-loadBalancer", lifespan=lifespan)
+# app = FastAPI(tittle="DoH-loadBalancer")
 
 @app.get("/resolve")
 async def resolve_dns(url: str, type: str = "A"):
@@ -37,13 +39,13 @@ async def resolve_dns(url: str, type: str = "A"):
         wire_data = q.to_wire()
 
         # Sending to dnsdist async
-        async with httpx.AsyncClient(verify=False, http2=True) as client:
-            response = await client.post(
-                DNSDIST_URL,
-                headers={"ContentType": "application/dns-message"},
-                content=wire_data,
-                timeout=5.0
-            )
+        # async with httpx.AsyncClient(verify=False, http2=True) as client:
+        response = await client.post(
+            DNSDIST_URL,
+            headers={"ContentType": "application/dns-message"},
+            content=wire_data,
+            timeout=5.0
+        )
         
         if response.status_code != 200:
             raise HTTPException(status_code=502, detail=f"Erro no DNSDist: {response.text}")
@@ -52,20 +54,31 @@ async def resolve_dns(url: str, type: str = "A"):
         dns_response = dns.message.from_wire(response.content)
 
         full_answers = []
-        for rrset in dns_response.answer:
-            rtype = dns.rdatatype.to_text(rrset.rdtype)
-            for rr in rrset:
-                full_answers.append({
-                    "name": str(rrset.name),
-                    "type": rtype,
-                    "ttl": rrset.ttl,
-                    "data": str(rr)
-                })
+        if dns_response.answer:
+            for rrset in dns_response.answer:
+                rtype = dns.rdatatype.to_text(rrset.rdtype)
+                for rr in rrset:
+                    full_answers.append({
+                        "name": str(rrset.name),
+                        "type": rtype,
+                        "ttl": rrset.ttl,
+                        "data": str(rr)
+                    })
+
+        # for rrset in dns_response.answer:
+        #     rtype = dns.rdatatype.to_text(rrset.rdtype)
+        #     for rr in rrset:
+        #         full_answers.append({
+        #             "name": str(rrset.name),
+        #             "type": rtype,
+        #             "ttl": rrset.ttl,
+        #             "data": str(rr)
+        #         })
         
         # Direct return
         return {
-            "Status": dns.rcode.to_text(dns_response.rcode()),
-            "Question": [{"name": url, "type": type.upper()}],
+            # "Status": dns.rcode.to_text(dns_response.rcode()),
+            # "Question": [{"name": url, "type": type.upper()}],
             "Answer": full_answers
         }
     

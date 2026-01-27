@@ -33,14 +33,14 @@ async def bounded_request(domain, session, semaphore):
     async with semaphore:
         return await request_domain(session, domain)
 
-async def requesting_full_gather(max_concurrent=450):
-    domains = get_domains_tif()
-    # domains = get_domains_majestic()
+async def requesting_full_gather(max_concurrent=100):
+    # domains = get_domains_tif()
+    domains = get_domains_majestic()
     domains = domains[:100000]
 
     connector = aiohttp.TCPConnector(
         limit=max_concurrent,
-        limit_per_host=10,
+        limit_per_host=20,
         ttl_dns_cache=300,
         use_dns_cache=True
     )

@@ -1,3 +1,5 @@
 dnspython
 httpx[http2]
 fastapi[standard]
+gunicorn[standard]
+uvicorn[standard]
