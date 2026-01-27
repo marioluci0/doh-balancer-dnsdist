@@ -8,15 +8,15 @@ import httpx
 DNSDIST_URL = "https://dnsdist/dns-query"
 client: httpx.AsyncClient | None = None
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    global client
-    client = httpx.AsyncClient(verify=False, http2=True, timeout=5.0) # change verify=False to True for production
-    yield
-    await client.aclose()
+# @asynccontextmanager
+# async def lifespan(app: FastAPI):
+#     global client
+#     client = httpx.AsyncClient(verify=False, http2=True, limits=httpx.Limits(max_keepalive_connections=450, max_connections=450)) # change verify=False to True for production
+#     yield
+#     await client.aclose()
 
 # Using fast api to make async requests and make app more simple
-app = FastAPI(tittle="DoH-loadBalancer", lifespan=lifespan)
+app = FastAPI(tittle="DoH-loadBalancer")
 
 @app.get("/resolve")
 async def resolve_dns(url: str, type: str = "A"):
@@ -37,12 +37,13 @@ async def resolve_dns(url: str, type: str = "A"):
         wire_data = q.to_wire()
 
         # Sending to dnsdist async
-        response = await client.post(
-            DNSDIST_URL,
-            headers={"ContentType": "application/dns-message"},
-            content=wire_data,
-            timeout=5.0
-        )
+        async with httpx.AsyncClient(verify=False, http2=True) as client:
+            response = await client.post(
+                DNSDIST_URL,
+                headers={"ContentType": "application/dns-message"},
+                content=wire_data,
+                timeout=5.0
+            )
         
         if response.status_code != 200:
             raise HTTPException(status_code=502, detail=f"Erro no DNSDist: {response.text}")

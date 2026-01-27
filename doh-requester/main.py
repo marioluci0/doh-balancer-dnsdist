@@ -33,7 +33,7 @@ async def bounded_request(domain, session, semaphore):
     async with semaphore:
         return await request_domain(session, domain)
 
-async def requesting_full_gather(max_concurrent=470):
+async def requesting_full_gather(max_concurrent=450):
     # domains = get_domains_tif()
     domains = get_domains_majestic()
     domains = domains[:100000]
